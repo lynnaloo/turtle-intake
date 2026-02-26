@@ -72,25 +72,30 @@ turtle-intake/
 - The logo has a black background — place it on dark surfaces or use a transparent PNG variant if one becomes available
 
 ### Color Palette
-Derived from the logo illustration and SERC's nature-focused earth-tone aesthetic:
+Light mode, nature-inspired earth-tone palette drawn from the logo illustration and southeastreptile.org:
 
-| Role            | Color                      | Hex       |
-|-----------------|----------------------------|-----------|
-| Primary         | Deep olive / dark moss green | `#3B4A2F` |
-| Primary light   | Sage green                 | `#7A8C5E` |
-| Secondary       | Warm tan / carapace gold   | `#C4A265` |
-| Secondary dark  | Earthy brown               | `#6B4F2A` |
-| Background      | Off-black                  | `#0D0D0D` |
-| Surface         | Dark charcoal              | `#1A1A1A` |
-| Text primary    | Warm white                 | `#F5F0E8` |
-| Text secondary  | Muted tan                  | `#B0A080` |
+| Role              | Color                        | Hex       |
+|-------------------|------------------------------|-----------|
+| Primary           | Deep olive / dark moss green | `#4A5E35` |
+| Primary light     | Sage green                   | `#7A8C5E` |
+| Primary dark      | Forest shadow                | `#2E3B1F` |
+| Secondary         | Warm carapace gold           | `#B8924A` |
+| Secondary light   | Soft gold                    | `#D4AF6E` |
+| Secondary dark    | Earthy brown                 | `#6B4F2A` |
+| Background        | Warm parchment               | `#F5F0E6` |
+| Surface / Paper   | Soft cream                   | `#FDFAF4` |
+| Text primary      | Warm near-black              | `#2C2C1E` |
+| Text secondary    | Warm muted brown             | `#6B6347` |
+| Divider / Border  | Warm tan                     | `#DDD5C0` |
 
 ### MUI Theme Guidelines
-- Use **dark mode** as the base theme (`mode: 'dark'`) to match the logo's black background
-- Set `primary.main` to `#3B4A2F` and `secondary.main` to `#C4A265`
-- Use `Inter` or `Lato` as the body font (sans-serif, modern, accessible — consistent with SERC's website); slightly heavier weight for headings
-- Rounded corners throughout: `shape.borderRadius: 10`
-- Subtle card elevation with `box-shadow` using the primary dark color, not pure black
+- Use **light mode** as the base theme (`mode: 'light'`) to match southeastreptile.org's warm, accessible aesthetic
+- Set `primary.main` to `#4A5E35` and `secondary.main` to `#B8924A`
+- Use `Inter` or `Lato` as the body font (sans-serif, modern, accessible); slightly heavier weight for headings
+- Rounded corners throughout: `shape.borderRadius: 12`
+- Soft warm card shadows using `rgba(60,50,20,…)` — not pure grey or black
+- Logo displayed prominently in a hero-style header (64–80px), not squeezed into a tiny navbar icon
+- Step progress indicator between header and main content (Upload → Review → Confirm)
 
 ### UI Tone
 - Clean, calm, and nature-inspired — this is a practical tool for volunteers, not a flashy consumer app
