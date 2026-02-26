@@ -2,39 +2,36 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
+  timeout: 60000, // 60s — Vision API can be slow on large images
 });
 
 /**
- * POST /api/intake
- * Upload an intake sheet image for OCR extraction.
- * @param {File} imageFile - The image file from the browser file input or camera
- * @returns {Promise<Object>} - IntakeRecord JSON with extracted fields
+ * Step 1 — Upload intake form photo and get extracted fields back.
+ * POST /api/intake/extract
+ * @param {File} imageFile
+ * @returns {Promise<Object>} IntakeRecord with extracted fields
  */
 export async function extractIntakeData(imageFile) {
   const formData = new FormData();
-  formData.append('file', imageFile);
-  const response = await api.post('/api/intake', formData, {
+  formData.append('image', imageFile);
+
+  const response = await api.post('/api/intake/extract', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  return response.data;
+
+  // Response shape: { extracted: IntakeRecord, warnings: string[] }
+  return response.data.extracted;
 }
 
 /**
+ * Step 2 — Save the volunteer-reviewed intake record to Google Sheets.
  * POST /api/intake/save
- * Save a reviewed IntakeRecord to Google Sheets.
  * @param {Object} intakeData - The reviewed IntakeRecord object
- * @returns {Promise<Object>} - Confirmation response
- *
- * NOTE: This is currently mocked — the back-end endpoint has not been built yet.
- * Remove the mock and uncomment the real call once the back-end is ready.
+ * @returns {Promise<{ success: boolean, message: string }>}
  */
 export async function saveIntakeRecord(intakeData) {
-  // --- MOCK: remove when back-end /api/intake/save is implemented ---
-  console.log('Mock save — would POST to /api/intake/save:', intakeData);
-  await new Promise((resolve) => setTimeout(resolve, 800)); // simulate network delay
-  return { success: true };
-  // --- END MOCK ---
-
-  // const response = await api.post('/api/intake/save', intakeData);
-  // return response.data;
+  const response = await api.post('/api/intake/save', intakeData, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return response.data;
 }
