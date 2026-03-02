@@ -5,6 +5,7 @@ backend/.env
 frontend/.env
 *.json.key
 service-account*.json
+github-deploy-key.json
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
