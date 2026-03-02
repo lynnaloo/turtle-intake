@@ -6,6 +6,7 @@ frontend/.env
 *.json.key
 service-account*.json
 github-deploy-key.json
+.firebase/
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
