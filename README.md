@@ -1,26 +1,6 @@
 # 🐢 SERC Wildlife Intake
 
-A web application for volunteers at **[Southeastern Reptile Conservation (SERC)](https://www.southeastreptile.org)** — a licensed wildlife rehabilitation organization in Virginia focused on native reptiles and amphibians.
-
-Volunteers photograph a paper intake sheet, upload the photo through the app, and the back-end extracts patient and rescuer information using Google Cloud Vision OCR — then appends the record to a Google Sheet in WRMD export format for staff review.
-
----
-
-## How It Works
-
-```
-📷 Volunteer photographs intake sheet
-        ↓
-🌐 Uploads photo via the web app
-        ↓
-🔍 Google Cloud Vision extracts text from the form
-        ↓
-✏️  Volunteer reviews and corrects extracted data
-        ↓
-💾 Record is appended to Google Sheets (WRMD format)
-        ↓
-👩‍⚕️ Staff enters the record into wrmd.org
-```
+Web app for [Southeastern Reptile Conservation (SERC)](https://www.southeastreptile.org) volunteers to photograph a paper intake sheet and have patient/rescuer data extracted via OCR, reviewed, and saved to a Google Sheet in WRMD export format.
 
 ---
 
@@ -32,7 +12,9 @@ Volunteers photograph a paper intake sheet, upload the photo through the app, an
 | Back-end | Python, FastAPI |
 | OCR | Google Cloud Vision API |
 | Data storage | Google Sheets API |
-| Auth | Google Service Account |
+| Frontend hosting | Firebase Hosting |
+| Backend hosting | Google Cloud Run |
+| CI/CD | Google Cloud Build |
 
 ---
 
@@ -40,66 +22,49 @@ Volunteers photograph a paper intake sheet, upload the photo through the app, an
 
 ```
 turtle-intake/
-├── frontend/                  # React + Material UI app
-│   ├── public/
+├── cloudbuild.yaml            # CI/CD pipeline
+├── firebase.json              # Firebase Hosting config
+├── frontend/
+│   ├── .env.production        # Production API URL
 │   └── src/
-│       ├── assets/
-│       │   └── logo.png       # SERC circular turtle logo
 │       ├── components/
-│       │   ├── UploadForm/    # Photo capture / file upload
+│       │   ├── UploadForm/    # Photo upload
 │       │   ├── ReviewForm/    # Review & edit extracted fields
-│       │   └── ConfirmDialog/ # Final confirmation before saving
-│       ├── services/
-│       │   └── api.js         # Axios wrapper for back-end calls
+│       │   └── ConfirmDialog/ # Confirm before saving
+│       ├── services/api.js    # API client
 │       ├── App.jsx
-│       ├── theme.js           # MUI light theme (SERC earth tones)
-│       └── index.js
-└── backend/                   # Python FastAPI app (in progress)
+│       └── theme.js
+└── backend/
+    ├── Dockerfile
     ├── main.py
-    ├── routers/
-    │   └── intake.py          # POST /api/intake
+    ├── routers/intake.py      # POST /api/intake/extract, POST /api/intake/save, GET /api/taxa/search
     ├── services/
-    │   ├── ocr.py             # Google Cloud Vision extraction
-    │   └── sheets.py          # Google Sheets append logic
-    ├── models/
-    │   └── intake.py          # Pydantic IntakeRecord model
+    │   ├── ocr.py             # Cloud Vision extraction
+    │   ├── sheets.py          # Google Sheets append
+    │   └── wrmd.py            # WRMD taxa search
+    ├── models/intake.py
     └── requirements.txt
 ```
 
 ---
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
-- [Node.js 22+](https://nodejs.org/) (LTS)
-- Python 3.11+
-- A Google Cloud project with **Cloud Vision API** and **Google Sheets API** enabled
-- A Google Service Account with access to both APIs and the target spreadsheet
-
----
+- Node.js 22+, Python 3.11+
+- GCP project with Cloud Vision API and Sheets API enabled
+- Google Service Account JSON key with access to both APIs and the target spreadsheet
 
 ### Front-End
 
 ```bash
 cd frontend
 npm install
+# Create frontend/.env:
+# REACT_APP_API_BASE_URL=http://localhost:8000
+npm start   # http://localhost:3000
 ```
-
-Create a `.env` file (use `.env.example` as a template):
-
-```env
-REACT_APP_API_BASE_URL=http://localhost:8000
-```
-
-Start the dev server:
-
-```bash
-npm start
-# App runs at http://localhost:3000
-```
-
----
 
 ### Back-End
 
@@ -107,21 +72,7 @@ npm start
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-```
-
-Create a `.env` file (use `.env.example` as a template):
-
-```env
-GOOGLE_SERVICE_ACCOUNT_JSON=path/to/service-account.json
-GOOGLE_SHEET_ID=your_sheet_id_here
-GOOGLE_SHEET_TAB=daily-exams.csv
-GOOGLE_CLOUD_PROJECT=your_gcp_project_id
-FRONTEND_ORIGIN=http://localhost:3000
-```
-
-Start the API server:
-
-```bash
+# Create backend/.env from backend/.env.example
 uvicorn main:app --reload --port 8000
 ```
 
@@ -129,81 +80,84 @@ uvicorn main:app --reload --port 8000
 
 ## Environment Variables
 
-### Front-End (`frontend/.env`)
-
-| Variable | Description |
-|---|---|
-| `REACT_APP_API_BASE_URL` | Base URL for the FastAPI back-end |
-
 ### Back-End (`backend/.env`)
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Path to GCP service account JSON key file |
-| `GOOGLE_SHEET_ID` | ID of the target Google Sheet |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Local: path to service account JSON. Cloud Run: raw JSON contents from Secret Manager. |
+| `GOOGLE_SHEET_ID` | Target spreadsheet ID (from the sheet URL) |
 | `GOOGLE_SHEET_TAB` | Sheet tab name (default: `daily-exams.csv`) |
 | `GOOGLE_CLOUD_PROJECT` | GCP project ID |
-| `FRONTEND_ORIGIN` | Allowed CORS origin for the front-end |
+| `FRONTEND_ORIGIN` | Comma-separated allowed CORS origins |
+| `WRMD_API_KEY` | WRMD API token for taxa name validation |
 
-> ⚠️ Never commit `.env` files or service account JSON keys to version control.
+### Front-End (`frontend/.env`)
+
+| Variable | Description |
+|---|---|
+| `REACT_APP_API_BASE_URL` | FastAPI back-end URL |
 
 ---
 
 ## API
 
-### `POST /api/intake`
-
-Accepts a multipart image upload of the paper intake form. Returns extracted fields for volunteer review, and appends the confirmed record to Google Sheets.
-
-**Request:** `multipart/form-data` with an `image` file field
-**Response:** JSON matching the `IntakeRecord` schema
-
-#### IntakeRecord fields
-
-| Field | Required | Description |
-|---|---|---|
-| `common_name` | ✅ | Species common name (e.g. "Eastern Box Turtle") |
-| `admitted_at` | ✅ | Intake date (`YYYY-MM-DD`) |
-| `rescuer_first_name` | | Rescuer first name |
-| `rescuer_last_name` | | Rescuer last name |
-| `rescuer_phone` | | Rescuer contact number |
-| `rescuer_address` | | Rescuer street address |
-| `rescuer_city` | | Rescuer city |
-| `rescuer_postal_code` | | Rescuer ZIP code |
-| `found_at` | | Date animal was found (`YYYY-MM-DD`) |
-| `address_found` | | Street address where animal was found |
-| `city_found` | | City where animal was found |
-| `reasons_for_admission` | | `Injured`, `Orphaned`, `Displaced`, `Sick`, or `Other` |
-| `notes_about_rescue` | | Free-text rescue details |
-| `care_by_rescuer` | | Care provided before intake |
-
----
-
-## Google Sheets Format
-
-Records are appended to the configured sheet in **WRMD export format** — 73 standard columns plus one custom SERC column (`wrmd_processed`). Only intake-relevant columns are populated; the rest are left blank for clinical staff to complete later.
-
-The `wrmd_processed` column (col 74) is set to `0` on every new append. Staff update it to `1` in the sheet after entering the record into [wrmd.org](https://wrmd.org).
-
----
-
-## Deployment (Google Cloud)
-
-| Component | Recommended Service |
+| Endpoint | Description |
 |---|---|
-| Front-end | Firebase Hosting or Cloud Run |
-| Back-end (FastAPI) | Cloud Run |
-| Service Account key | Secret Manager |
+| `POST /api/intake/extract` | Upload intake form photo (multipart, `image` field, max 15 MB). Returns `{ extracted, warnings, taxa_candidates }`. |
+| `POST /api/intake/save` | Save reviewed `IntakeRecord` JSON to Google Sheets. |
+| `GET /api/taxa/search?q=` | Search WRMD species names. Returns `[{ value, label }]`. |
+| `GET /health` | Health check. |
 
 ---
 
-## About SERC
+## Deployment
 
-[Southeastern Reptile Conservation](https://www.southeastreptile.org) is a licensed wildlife rehabilitation organization based in Virginia, focused on the rehabilitation, conservation, and education of native reptile and amphibian species — primarily turtles, snakes, and salamanders.
+Backend → Cloud Run, frontend → Firebase Hosting, both via Cloud Build.
 
-SERC also supports the development of conservation technology and software tools that help streamline wildlife care, reduce administrative burden for volunteers, and improve data quality for research and reporting. This application is part of that effort.
+### 1. Store secrets in Secret Manager
 
-> *Protecting native species.*
+```bash
+gcloud secrets create GOOGLE_SERVICE_ACCOUNT_JSON --data-file=path/to/service-account.json
+echo -n "your_sheet_id"            | gcloud secrets create GOOGLE_SHEET_ID --data-file=-
+echo -n "https://your-app.web.app" | gcloud secrets create FRONTEND_ORIGIN --data-file=-
+echo -n "your_wrmd_api_key"        | gcloud secrets create WRMD_API_KEY --data-file=-
+# firebase login:ci → paste the token:
+echo -n "your_firebase_ci_token"   | gcloud secrets create FIREBASE_TOKEN --data-file=-
+```
 
-- 🌐 [southeastreptile.org](https://www.southeastreptile.org)
-- 📸 [@purringturtle](https://www.instagram.com/purringturtle) on Instagram
+### 2. Grant Cloud Build IAM roles
+
+```bash
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${CB_SA}" --role=roles/run.admin
+gcloud iam service-accounts add-iam-policy-binding \
+  "${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --member="serviceAccount:${CB_SA}" --role=roles/iam.serviceAccountUser
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${CB_SA}" --role=roles/secretmanager.secretAccessor
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${CB_SA}" --role=roles/firebasehosting.admin
+```
+
+### 3. Deploy
+
+The Cloud Run URL isn't known until after the first deploy — do a two-pass bootstrap:
+
+```bash
+# Pass 1 — get the Cloud Run URL
+gcloud builds submit --config=cloudbuild.yaml \
+  --substitutions=_REGION=us-east4,_SERVICE_NAME=serc-intake-api,\
+_API_URL=https://placeholder.example.com,_FIREBASE_PROJECT=serc-turtle-intake
+
+# Get the assigned URL
+gcloud run services describe serc-intake-api --region=us-east4 --format='value(status.url)'
+
+# Pass 2 — full deploy with the real URL
+gcloud builds submit --config=cloudbuild.yaml \
+  --substitutions=_REGION=us-east4,_SERVICE_NAME=serc-intake-api,\
+_API_URL=https://serc-intake-api-abc123-ue.a.run.app,_FIREBASE_PROJECT=serc-turtle-intake
+```

@@ -159,11 +159,15 @@ function SuccessView({ onReset }) {
 export default function App() {
   const [step, setStep] = useState('upload'); // 'upload' | 'review' | 'success'
   const [extractedData, setExtractedData] = useState(null);
+  const [extractionWarnings, setExtractionWarnings] = useState([]);
+  const [taxaCandidates, setTaxaCandidates] = useState([]);
   const [reviewedData, setReviewedData] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleExtracted = (data) => {
+  const handleExtracted = (data, warnings = [], candidates = []) => {
     setExtractedData(data);
+    setExtractionWarnings(warnings);
+    setTaxaCandidates(candidates);
     setStep('review');
   };
 
@@ -179,6 +183,8 @@ export default function App() {
 
   const handleReset = () => {
     setExtractedData(null);
+    setExtractionWarnings([]);
+    setTaxaCandidates([]);
     setReviewedData(null);
     setConfirmOpen(false);
     setStep('upload');
@@ -274,6 +280,8 @@ export default function App() {
           {step === 'review' && (
             <ReviewForm
               initialData={extractedData}
+              warnings={extractionWarnings}
+              taxaCandidates={taxaCandidates}
               onSaveRequest={handleSaveRequest}
             />
           )}

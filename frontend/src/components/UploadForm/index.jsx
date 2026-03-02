@@ -12,11 +12,17 @@ import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
 import { extractIntakeData } from '../../services/api';
 
+// Vision API hard limit is 20 MB inline; 15 MB gives comfortable headroom
+// and keeps upload times reasonable on mobile connections.
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;  // 15 MB — hard block
+const WARN_IMAGE_BYTES = 8 * 1024 * 1024;  // 8 MB — soft warning
+
 export default function UploadForm({ onExtracted }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sizeWarning, setSizeWarning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef(null);
 
@@ -34,8 +40,23 @@ export default function UploadForm({ onExtracted }) {
       setError('Please select an image file (JPG, PNG, HEIC, etc.).');
       return;
     }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError(
+        `This image is too large (${formatBytes(file.size)}). Maximum size is 15 MB. ` +
+        'Please compress it or take a new photo at a lower resolution.'
+      );
+      setSizeWarning(false);
+      return;
+    }
     setError(null);
+    setSizeWarning(file.size > WARN_IMAGE_BYTES);
     setSelectedFile(file);
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
@@ -46,19 +67,13 @@ export default function UploadForm({ onExtracted }) {
     handleFileChange(e.dataTransfer.files[0]);
   };
 
-  const formatBytes = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   const handleExtract = async () => {
     if (!selectedFile) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await extractIntakeData(selectedFile);
-      onExtracted(data);
+      const { extracted, warnings, taxa_candidates } = await extractIntakeData(selectedFile);
+      onExtracted(extracted, warnings, taxa_candidates || []);
     } catch (err) {
       const message =
         err.response?.data?.detail ||
@@ -214,6 +229,7 @@ export default function UploadForm({ onExtracted }) {
               onClick={() => {
                 setSelectedFile(null);
                 setError(null);
+                setSizeWarning(false);
                 if (inputRef.current) inputRef.current.value = '';
               }}
               sx={{
@@ -255,6 +271,14 @@ export default function UploadForm({ onExtracted }) {
             </Typography>
           </Box>
         </Paper>
+      )}
+
+      {/* ── Size warning (soft — file selected but large) ─────────────── */}
+      {sizeWarning && !error && (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          This image is large and may take a little longer to process. If extraction
+          times out, try retaking the photo at a lower resolution.
+        </Alert>
       )}
 
       {/* ── Error ─────────────────────────────────────────────────────── */}

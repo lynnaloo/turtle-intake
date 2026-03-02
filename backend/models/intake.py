@@ -1,6 +1,13 @@
 from pydantic import BaseModel
 
 
+class TaxaCandidate(BaseModel):
+    """A species name candidate returned by the WRMD taxa search."""
+
+    value: int
+    label: str
+
+
 class IntakeRecord(BaseModel):
     """
     Fields extracted from a SERC paper intake form.
@@ -29,3 +36,4 @@ class IntakeResponse(BaseModel):
 
     extracted: IntakeRecord
     warnings: list[str] = []
+    taxa_candidates: list[TaxaCandidate] = []

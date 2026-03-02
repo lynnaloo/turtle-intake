@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
+import Autocomplete from '@mui/material/Autocomplete';
+import CircularProgress from '@mui/material/CircularProgress';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
 import Divider from '@mui/material/Divider';
@@ -12,9 +14,11 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
 import Paper from '@mui/material/Paper';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
+import { searchTaxa } from '../../services/api';
 
 const REASONS = ['Injured', 'Orphaned', 'Displaced', 'Sick', 'Other'];
 
@@ -58,10 +62,15 @@ function SectionLabel({ children }) {
   );
 }
 
-export default function ReviewForm({ initialData, onSaveRequest }) {
+export default function ReviewForm({ initialData, warnings = [], taxaCandidates = [], onSaveRequest }) {
   const [formData, setFormData] = useState(() => normalize(initialData));
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
+
+  // WRMD taxa Autocomplete state
+  const [taxaOptions, setTaxaOptions] = useState(() => (taxaCandidates || []).map((c) => c.label));
+  const [taxaLoading, setTaxaLoading] = useState(false);
+  const debounceRef = useRef(null);
 
   const handleChange = (field) => (e) => {
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
@@ -103,6 +112,17 @@ export default function ReviewForm({ initialData, onSaveRequest }) {
         are required.
       </Typography>
 
+      {warnings.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <AlertTitle sx={{ fontWeight: 700 }}>Some fields need your attention</AlertTitle>
+          <Box component="ul" sx={{ m: 0, pl: 2 }}>
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </Box>
+        </Alert>
+      )}
+
       <Paper
         variant="outlined"
         sx={{
@@ -116,13 +136,57 @@ export default function ReviewForm({ initialData, onSaveRequest }) {
         <SectionLabel>Patient</SectionLabel>
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <TextField
-              label="Species / Common Name *"
-              value={formData.common_name}
-              onChange={handleChange('common_name')}
+            <Autocomplete
+              freeSolo
               fullWidth
-              required
-              placeholder="e.g. Eastern Box Turtle"
+              options={taxaOptions}
+              value={formData.common_name}
+              inputValue={formData.common_name}
+              filterOptions={(x) => x}
+              loading={taxaLoading}
+              onChange={(_, newValue) => {
+                const v = typeof newValue === 'string' ? newValue : '';
+                setFormData((prev) => ({ ...prev, common_name: v }));
+              }}
+              onInputChange={(_, newInputValue, reason) => {
+                // Always keep formData in sync with what the user types / selects
+                setFormData((prev) => ({ ...prev, common_name: newInputValue }));
+
+                if (reason === 'input') {
+                  clearTimeout(debounceRef.current);
+                  if (newInputValue.trim().length >= 2) {
+                    debounceRef.current = setTimeout(async () => {
+                      setTaxaLoading(true);
+                      try {
+                        const results = await searchTaxa(newInputValue.trim());
+                        setTaxaOptions(results.map((r) => r.label));
+                      } catch {
+                        // ignore — WRMD outage should not block the volunteer
+                      } finally {
+                        setTaxaLoading(false);
+                      }
+                    }, 350);
+                  }
+                }
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  fullWidth
+                  label="Species / Common Name *"
+                  required
+                  placeholder="e.g. Eastern Box Turtle"
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {taxaLoading && <CircularProgress size={16} color="inherit" sx={{ mr: 1 }} />}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
             />
           </Grid>
           <Grid item xs={12}>

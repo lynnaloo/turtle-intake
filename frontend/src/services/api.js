@@ -19,8 +19,20 @@ export async function extractIntakeData(imageFile) {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
-  // Response shape: { extracted: IntakeRecord, warnings: string[] }
-  return response.data.extracted;
+  // Response shape: { extracted: IntakeRecord, warnings: string[], taxa_candidates: TaxaCandidate[] }
+  return response.data;
+}
+
+/**
+ * Search WRMD taxa by common name query.
+ * GET /api/taxa/search?q={query}
+ * @param {string} query
+ * @returns {Promise<Array<{value: number, label: string}>>}
+ */
+export async function searchTaxa(query) {
+  if (!query || query.trim().length < 2) return [];
+  const response = await api.get('/api/taxa/search', { params: { q: query.trim() } });
+  return response.data;
 }
 
 /**

@@ -11,6 +11,7 @@ The SERC intake form layout has labels and values on adjacent lines, e.g.:
 This parser handles both same-line and next-line value layouts.
 """
 
+import json
 import os
 import re
 import logging
@@ -34,15 +35,29 @@ _REASON_KEYWORDS = [
 
 
 def _get_vision_client() -> vision.ImageAnnotatorClient:
-    """Build a Vision API client using the service account from .env."""
-    key_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(
-            key_path,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
+    """
+    Build a Vision API client.
+
+    Credential resolution order:
+      1. GOOGLE_SERVICE_ACCOUNT_JSON contains raw JSON (Cloud Run secret-as-env)
+      2. GOOGLE_SERVICE_ACCOUNT_JSON is a file path (local dev)
+      3. Application Default Credentials (Cloud Run with attached service account)
+    """
+    raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+
+    if raw.startswith("{"):
+        # Inline JSON string
+        info = json.loads(raw)
+        credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
         return vision.ImageAnnotatorClient(credentials=credentials)
-    # Fall back to Application Default Credentials (useful on Cloud Run)
+
+    if raw:
+        # File path
+        credentials = service_account.Credentials.from_service_account_file(raw, scopes=scopes)
+        return vision.ImageAnnotatorClient(credentials=credentials)
+
+    # Fall back to Application Default Credentials
     return vision.ImageAnnotatorClient()
 
 
