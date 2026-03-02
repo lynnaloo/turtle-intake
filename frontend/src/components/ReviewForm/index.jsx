@@ -28,6 +28,8 @@ function normalize(data) {
   return {
     common_name: d.common_name ?? '',
     admitted_at: d.admitted_at ?? '',
+    name: d.name ?? '',
+    reference_number: d.reference_number ?? '',
     rescuer_first_name: d.rescuer_first_name ?? '',
     rescuer_last_name: d.rescuer_last_name ?? '',
     rescuer_phone: d.rescuer_phone ?? '',
@@ -195,6 +197,25 @@ export default function ReviewForm({ initialData, warnings = [], taxaCandidates 
               value={formData.admitted_at ? dayjs(formData.admitted_at) : null}
               onChange={handleDateChange('admitted_at')}
               slotProps={{ textField: { fullWidth: true, required: true } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={8}>
+            <TextField
+              label="Patient Name"
+              value={formData.name}
+              onChange={handleChange('name')}
+              fullWidth
+              placeholder="e.g. Shelly"
+              helperText="Optional name or identifier for this patient"
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              label="Reference #"
+              value={formData.reference_number}
+              onChange={handleChange('reference_number')}
+              fullWidth
+              placeholder="e.g. 2025-001"
             />
           </Grid>
         </Grid>

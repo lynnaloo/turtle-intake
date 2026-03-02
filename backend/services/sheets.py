@@ -69,7 +69,10 @@ def _build_row(record: IntakeRecord) -> list[str]:
     Col 10: reasons_for_admission ✅
     Col 11: care_by_rescuer       ✅
     Col 12: notes_about_rescue    ✅
-    Col 13–18: clinical fields         (blank)
+    Col 13–15: clinical fields         (blank)
+    Col 16: reference_number          ✅
+    Col 17: name                      ✅
+    Col 18: keywords                  (blank)
     Col 19: disposition               ✅ always "Pending"
     Col 20–29: transfer/release fields (blank)
     Col 30: rescuer_first_name    ✅
@@ -102,7 +105,10 @@ def _build_row(record: IntakeRecord) -> list[str]:
     row[9]  = v(record.reasons_for_admission) # col 10
     row[10] = v(record.care_by_rescuer)       # col 11
     row[11] = v(record.notes_about_rescue)    # col 12
-    # cols 13–18 (indices 12–17)   — blank (clinical fields)
+    # cols 13–15 (indices 12–14)   — blank (diagnosis, band, microchip)
+    row[15] = v(record.reference_number)      # col 16
+    row[16] = v(record.name)                  # col 17
+    # row[17] keywords              — blank
     row[18] = "Pending"                       # col 19 disposition (REQUIRED)
     # cols 20–29 (indices 19–28)   — blank (transfer/release fields)
     row[29] = v(record.rescuer_first_name)    # col 30

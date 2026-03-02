@@ -17,6 +17,8 @@ class IntakeRecord(BaseModel):
 
     common_name: str                    # REQUIRED — e.g. "Eastern Box Turtle"
     admitted_at: str                    # REQUIRED — YYYY-MM-DD
+    name: str | None = None             # optional patient name / identifier
+    reference_number: str | None = None # optional internal reference number
     rescuer_first_name: str | None = None
     rescuer_last_name: str | None = None
     rescuer_phone: str | None = None
