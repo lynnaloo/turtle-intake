@@ -5,12 +5,12 @@
 #   • Frontend → builds React bundle, deploys to Firebase Hosting
 #
 # Required GitHub Secrets (Settings → Secrets → Actions):
-#   GCP_SA_KEY      — JSON key of a GCP service account with these roles:
-#                       roles/run.admin
-#                       roles/iam.serviceAccountUser
-#                       roles/storage.admin        (push to Container Registry)
-#                       roles/secretmanager.secretAccessor
-#   FIREBASE_TOKEN  — CI token from `firebase login:ci`
+#   GCP_SA_KEY  — JSON key of a GCP service account with these roles:
+#                   roles/run.admin
+#                   roles/iam.serviceAccountUser
+#                   roles/artifactregistry.writer
+#                   roles/secretmanager.secretAccessor
+#                   roles/firebasehosting.admin
 
 name: Deploy
 
@@ -74,6 +74,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
@@ -92,5 +97,3 @@ jobs:
 
       - name: Deploy to Firebase Hosting
         run: npx --yes firebase-tools deploy --only hosting --project $FIREBASE_PROJECT --non-interactive
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

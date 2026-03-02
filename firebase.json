@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "serc-turtle-intake",
     "public": "frontend/build",
     "ignore": [
       "firebase.json",
