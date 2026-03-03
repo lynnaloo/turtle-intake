@@ -282,6 +282,7 @@ export default function App() {
               warnings={extractionWarnings}
               taxaCandidates={taxaCandidates}
               onSaveRequest={handleSaveRequest}
+              onBack={handleReset}
             />
           )}
           {step === 'success' && <SuccessView onReset={handleReset} />}

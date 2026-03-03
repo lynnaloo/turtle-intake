@@ -31,6 +31,7 @@ class IntakeRecord(BaseModel):
     reasons_for_admission: str | None = None   # Injured | Orphaned | Displaced | Sick | Other
     notes_about_rescue: str | None = None
     care_by_rescuer: str | None = None
+    disposition: str = "Pending"               # Pending | Released | Transferred | Euthanized | Died in Care | DOA
 
 
 class IntakeResponse(BaseModel):

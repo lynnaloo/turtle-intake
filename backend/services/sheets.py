@@ -109,7 +109,7 @@ def _build_row(record: IntakeRecord) -> list[str]:
     row[15] = v(record.reference_number)      # col 16
     row[16] = v(record.name)                  # col 17
     # row[17] keywords              — blank
-    row[18] = "Pending"                       # col 19 disposition (REQUIRED)
+    row[18] = v(record.disposition) or "Pending"  # col 19 disposition (REQUIRED)
     # cols 20–29 (indices 19–28)   — blank (transfer/release fields)
     row[29] = v(record.rescuer_first_name)    # col 30
     row[30] = v(record.rescuer_last_name)     # col 31

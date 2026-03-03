@@ -18,6 +18,7 @@ import { saveIntakeRecord } from '../../services/api';
 const FIELD_LABELS = {
   common_name: 'Species',
   admitted_at: 'Intake Date',
+  disposition: 'Disposition',
   rescuer_first_name: 'First Name',
   rescuer_last_name: 'Last Name',
   rescuer_phone: 'Phone',
@@ -33,7 +34,7 @@ const FIELD_LABELS = {
 };
 
 const SECTIONS = [
-  { title: 'Patient', fields: ['common_name', 'admitted_at'] },
+  { title: 'Patient', fields: ['common_name', 'admitted_at', 'disposition'] },
   {
     title: 'Rescuer',
     fields: ['rescuer_first_name', 'rescuer_last_name', 'rescuer_phone',

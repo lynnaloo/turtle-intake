@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import { searchTaxa } from '../../services/api';
 
 const REASONS = ['Injured', 'Orphaned', 'Displaced', 'Sick', 'Other'];
+const DISPOSITIONS = ['Pending', 'Released', 'Transferred', 'Euthanized', 'Died in Care', 'DOA'];
 
 // Normalize null/undefined to empty strings for controlled inputs
 function normalize(data) {
@@ -41,6 +42,7 @@ function normalize(data) {
     reasons_for_admission: d.reasons_for_admission ?? '',
     notes_about_rescue: d.notes_about_rescue ?? '',
     care_by_rescuer: d.care_by_rescuer ?? '',
+    disposition: d.disposition ?? 'Pending',
   };
 }
 
@@ -63,7 +65,7 @@ function SectionLabel({ children }) {
   );
 }
 
-export default function ReviewForm({ initialData, warnings = [], taxaCandidates = [], onSaveRequest }) {
+export default function ReviewForm({ initialData, warnings = [], taxaCandidates = [], onSaveRequest, onBack }) {
   const [formData, setFormData] = useState(() => normalize(initialData));
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
@@ -217,6 +219,20 @@ export default function ReviewForm({ initialData, warnings = [], taxaCandidates 
               placeholder="e.g. 2025-001"
             />
           </Grid>
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Disposition</InputLabel>
+              <Select
+                value={formData.disposition}
+                onChange={handleChange('disposition')}
+                label="Disposition"
+              >
+                {DISPOSITIONS.map((d) => (
+                  <MenuItem key={d} value={d}>{d}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
         </Grid>
 
         {/* ── Rescuer ──────────────────────────────────────────────────── */}
@@ -350,17 +366,28 @@ export default function ReviewForm({ initialData, warnings = [], taxaCandidates 
         </Grid>
       </Paper>
 
-      {/* ── Save button ──────────────────────────────────────────────────── */}
-      <Button
-        variant="contained"
-        color="primary"
-        fullWidth
-        size="large"
-        onClick={handleSave}
-        sx={{ mt: 3, py: 1.5, fontSize: '1rem' }}
-      >
-        Save Record
-      </Button>
+      {/* ── Actions ──────────────────────────────────────────────────────── */}
+      <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+        <Button
+          variant="outlined"
+          color="primary"
+          size="large"
+          onClick={onBack}
+          sx={{ py: 1.5, minWidth: 160 }}
+        >
+          Upload New Photo
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          fullWidth
+          size="large"
+          onClick={handleSave}
+          sx={{ py: 1.5, fontSize: '1rem' }}
+        >
+          Save Record
+        </Button>
+      </Box>
 
       {/* ── Validation snackbar ──────────────────────────────────────────── */}
       <Snackbar
