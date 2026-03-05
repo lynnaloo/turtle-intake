@@ -240,13 +240,17 @@ def extract_intake_fields(image_bytes: bytes) -> IntakeRecord:
     Raises RuntimeError on Vision API failure.
     """
     raw_text = _extract_raw_text(image_bytes)
-    logger.debug("Raw OCR text:\n%s", raw_text)
+    logger.info("Raw OCR text:\n%s", raw_text)
 
     # ── Date ──────────────────────────────────────────────────────────────────
     # The form's "Date" field is used for both found and admitted dates.
     form_date = parse_date(_find_field(raw_text, "Date", "Date Found")) or ""
     found_at = form_date or None
     admitted_at = form_date
+
+    # ── Rescuer name ──────────────────────────────────────────────────────────
+    full_name = _find_field(raw_text, "Full Name", "Rescuer Name", "Finder")
+    rescuer_first, rescuer_last = _parse_name(full_name)
 
     # ── Species ───────────────────────────────────────────────────────────────
     # The form has "Species/Common Name:" label with the value on the NEXT line.
@@ -256,13 +260,9 @@ def extract_intake_fields(image_bytes: bytes) -> IntakeRecord:
         or _find_field_after(raw_text, "Common Name", max_lines=2)
         or ""
     )
-    # Guard: if it still looks like a label, clear it
-    if _is_label(common_name):
+    # Guard: if it looks like a label or bled into the rescuer's name, clear it
+    if _is_label(common_name) or (full_name and common_name.strip() == full_name.strip()):
         common_name = ""
-
-    # ── Rescuer name ──────────────────────────────────────────────────────────
-    full_name = _find_field(raw_text, "Full Name", "Rescuer Name", "Finder")
-    rescuer_first, rescuer_last = _parse_name(full_name)
 
     # ── Rescuer phone ─────────────────────────────────────────────────────────
     # Try the label first; fall back to regex scan for any 10-digit number.
@@ -313,12 +313,10 @@ def extract_intake_fields(image_bytes: bytes) -> IntakeRecord:
         "Notes",
     )
 
-    care_by_rescuer = _find_field(
-        raw_text,
-        "Care given (food, water, medications, treatments)",
-        "Care given",
-        "Care provided",
-        "Treatment",
+    care_by_rescuer = (
+        _find_field_after(raw_text, "Care given", max_lines=3)
+        or _find_field_after(raw_text, "Care provided", max_lines=3)
+        or _find_field_after(raw_text, "Treatment", max_lines=3)
     )
 
     return IntakeRecord(
