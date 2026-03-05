@@ -73,6 +73,15 @@ def _extract_raw_text(image_bytes: bytes) -> str:
     return response.full_text_annotation.text
 
 
+def _is_label(text: str) -> bool:
+    """Return True if text looks like a form label rather than a field value."""
+    return bool(
+        re.match(r"^[A-Za-z /\(\)]+:$", text)
+        # Parenthetical label continuation, e.g. "(food, water, medications, treatments):"
+        or re.match(r"^\([^)]+\):?$", text)
+    )
+
+
 def _find_field(text: str, *labels: str, next_line: bool = False) -> str | None:
     """
     Find the value following any of the given label strings in OCR text.
@@ -95,21 +104,20 @@ def _find_field(text: str, *labels: str, next_line: bool = False) -> str | None:
             value = match.group(1).strip()
             # Remove bleed-through from next label on same line
             value = re.split(r"\s{3,}|\n", value)[0].strip()
-            # Skip if value looks like another label (ends with colon or is all caps label)
-            if value and not re.match(r"^[A-Za-z /\(\)]+:$", value):
+            if value and not _is_label(value):
                 return value
 
         # Strategy 2: next-line — label alone on a line, value follows
         for i, line in enumerate(lines):
             if re.search(escaped, line, re.IGNORECASE) and i + 1 < len(lines):
                 next = lines[i + 1].strip()
-                if next and not re.match(r"^[A-Za-z /\(\)]+:$", next):
+                if next and not _is_label(next):
                     return next
 
     return None
 
 
-def _find_field_after(text: str, label: str) -> str | None:
+def _find_field_after(text: str, label: str, max_lines: int = 4) -> str | None:
     """
     More aggressive next-line search: find the first non-empty, non-label
     line that appears after the given label anywhere in the text.
@@ -118,9 +126,9 @@ def _find_field_after(text: str, label: str) -> str | None:
     escaped = re.escape(label)
     for i, line in enumerate(lines):
         if re.search(escaped, line, re.IGNORECASE):
-            for j in range(i + 1, min(i + 4, len(lines))):
+            for j in range(i + 1, min(i + max_lines + 1, len(lines))):
                 candidate = lines[j].strip()
-                if candidate and not re.match(r"^[A-Za-z /\(\)]+:$", candidate):
+                if candidate and not _is_label(candidate):
                     return candidate
     return None
 
@@ -177,39 +185,48 @@ def _parse_reason(text: str) -> str | None:
     """
     Detect which admission reason checkbox was ticked.
 
-    The form reads: "Injured ( ) Orphaned ( ) Displaced (✓ Sick ( ) Other (Specify)"
-    Vision OCR may render the checkmark as ✓, √, x, X, or similar adjacent to the keyword.
+    The form label is "Reason for intake" followed by options:
+    "Injured ( ) Orphaned ( ) Displaced (✓) Sick ( ) Other (Specify)"
+    Vision OCR may render the checkmark as ✓, √, x, X, or similar.
 
     Strategy:
-      1. Find a checkmark character immediately before or after a keyword
-      2. Fall back to the first keyword found in the reason line
+      1. Find checkmark adjacent to a keyword anywhere in the full text
+      2. Build a window starting at "Reason for intake" label and search that block
     """
-    # Find the line containing the reason checkboxes
-    reason_line = ""
-    for line in text.splitlines():
-        if re.search(r"injured|orphaned|displaced|sick", line, re.IGNORECASE):
-            reason_line = line
-            break
-
-    if not reason_line:
-        return None
-
-    logger.debug("Reason line: %s", reason_line)
-
-    # Look for checkmark adjacent to each keyword (checkmark BEFORE keyword wins)
     checkmark = r"[✓✗√xX\*]"
+
+    # Strategy 1: checkmark adjacent to keyword anywhere in full text
     for keyword, value in _REASON_KEYWORDS:
-        # Pattern: checkmark within the parentheses before the keyword
-        # e.g. "Displaced (✓" or "(✓) Displaced" or "Displaced✓"
-        pattern = rf"{keyword}\s*\({checkmark}|{checkmark}\s*\)?\s*{keyword}|{keyword}\s*{checkmark}"
-        if re.search(pattern, reason_line, re.IGNORECASE):
+        pattern = rf"{keyword}\s*\({checkmark}|{checkmark}\s*\)?\s*{keyword}|{keyword}\s*{checkmark}|\({checkmark}\)\s*{keyword}"
+        if re.search(pattern, text, re.IGNORECASE):
             return value
 
-    # Fallback: find keyword immediately preceded by an open paren + checkmark
-    # anywhere in full text (handles multi-line OCR)
+    # Build a reason window starting at the "Reason for intake" label,
+    # spanning up to 4 lines to capture multi-line OCR output
+    lines = text.splitlines()
+    reason_window = []
+    for i, line in enumerate(lines):
+        if re.search(r"reason\s+for\s+intake", line, re.IGNORECASE):
+            reason_window = lines[i : min(i + 4, len(lines))]
+            break
+
+    # Fall back to any line containing a reason keyword if label not found
+    if not reason_window:
+        for i, line in enumerate(lines):
+            if re.search(r"injured|orphaned|displaced|sick", line, re.IGNORECASE):
+                reason_window = lines[i : min(i + 3, len(lines))]
+                break
+
+    if not reason_window:
+        return None
+
+    reason_block = " ".join(reason_window)
+    logger.debug("Reason block: %s", reason_block)
+
+    # Strategy 2: checkmark near keyword in the joined block
     for keyword, value in _REASON_KEYWORDS:
-        pattern = rf"\({checkmark}\s*\)?\s*{keyword}|{keyword}\s*\({checkmark}"
-        if re.search(pattern, text, re.IGNORECASE):
+        pattern = rf"{keyword}\s*\({checkmark}|{checkmark}\s*\)?\s*{keyword}|{keyword}\s*{checkmark}|\({checkmark}\)\s*{keyword}"
+        if re.search(pattern, reason_block, re.IGNORECASE):
             return value
 
     return None
@@ -225,20 +242,22 @@ def extract_intake_fields(image_bytes: bytes) -> IntakeRecord:
     raw_text = _extract_raw_text(image_bytes)
     logger.debug("Raw OCR text:\n%s", raw_text)
 
-    # ── Date admitted ─────────────────────────────────────────────────────────
-    raw_date = _find_field(raw_text, "Date", "Intake Date", "Date of Intake")
-    admitted_at = parse_date(raw_date) or ""
+    # ── Date ──────────────────────────────────────────────────────────────────
+    # The form's "Date" field is used for both found and admitted dates.
+    form_date = parse_date(_find_field(raw_text, "Date", "Date Found")) or ""
+    found_at = form_date or None
+    admitted_at = form_date
 
     # ── Species ───────────────────────────────────────────────────────────────
-    # The form has "Species/Common Name:" label with the value on the NEXT line
+    # The form has "Species/Common Name:" label with the value on the NEXT line.
+    # Use max_lines=2 to avoid jumping into the rescuer section if the field is blank.
     common_name = (
-        _find_field_after(raw_text, "Species/Common Name")
-        or _find_field_after(raw_text, "Common Name")
-        or _find_field(raw_text, "Species", "Animal")
+        _find_field_after(raw_text, "Species/Common Name", max_lines=2)
+        or _find_field_after(raw_text, "Common Name", max_lines=2)
         or ""
     )
     # Guard: if it still looks like a label, clear it
-    if re.match(r"^[A-Za-z /\(\)]+:$", common_name):
+    if _is_label(common_name):
         common_name = ""
 
     # ── Rescuer name ──────────────────────────────────────────────────────────
@@ -246,22 +265,24 @@ def extract_intake_fields(image_bytes: bytes) -> IntakeRecord:
     rescuer_first, rescuer_last = _parse_name(full_name)
 
     # ── Rescuer phone ─────────────────────────────────────────────────────────
-    # Phone numbers are reliably identified by their pattern — search the whole
-    # text for a 10-digit phone number rather than relying on label proximity.
-    phone_match = re.search(r"\b(\(?\d{3}\)?[\-\.\s]\d{3}[\-\.\s]\d{4})\b", raw_text)
-    rescuer_phone = phone_match.group(1).strip() if phone_match else None
+    # Try the label first; fall back to regex scan for any 10-digit number.
+    raw_phone = _find_field(raw_text, "Contact Number", "Phone", "Phone Number")
+    if not raw_phone:
+        phone_match = re.search(r"\b(\(?\d{3}\)?[\-\.\s]\d{3}[\-\.\s]\d{4})\b", raw_text)
+        raw_phone = phone_match.group(1).strip() if phone_match else None
+    rescuer_phone = raw_phone
 
     # ── Rescuer address ───────────────────────────────────────────────────────
-    # A street address reliably starts with a number — find the first line
-    # that looks like a street address (starts with digits followed by text).
-    raw_address = None
-    for line in raw_text.splitlines():
-        line = line.strip()
-        if re.match(r"^\d+\s+[A-Za-z]", line):
-            # Skip lines that are just ZIP codes or phone numbers
-            if not re.match(r"^\d{5}$", line) and not re.search(r"\d{3}[\-\.]\d{4}", line):
-                raw_address = line
-                break
+    # Try the label first; fall back to finding the first line that starts with
+    # a street number (handles same-line and next-line OCR layouts).
+    raw_address = _find_field(raw_text, "Address")
+    if not raw_address:
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if re.match(r"^\d+\s+[A-Za-z]", line):
+                if not re.match(r"^\d{5}$", line) and not re.search(r"\d{3}[\-\.]\d{4}", line):
+                    raw_address = line
+                    break
     rescuer_address, rescuer_city, rescuer_postal_code = _parse_address(raw_address)
 
     # ── Location found (if different) ─────────────────────────────────────────
@@ -279,9 +300,6 @@ def extract_intake_fields(image_bytes: bytes) -> IntakeRecord:
             address_found, city_found, _ = _parse_address(raw_location)
         else:
             city_found = raw_location.strip()
-
-    # ── Date found ────────────────────────────────────────────────────────────
-    found_at = parse_date(_find_field(raw_text, "Date Found", "Found Date"))
 
     # ── Intake reason ─────────────────────────────────────────────────────────
     reasons_for_admission = _parse_reason(raw_text)

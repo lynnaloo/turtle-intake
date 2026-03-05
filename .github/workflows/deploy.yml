@@ -24,7 +24,7 @@ env:
   SERVICE_NAME: serc-intake-api
   IMAGE: gcr.io/turtle-intake/serc-intake-api
   API_URL: https://serc-intake-api-4d3j3nugya-uk.a.run.app
-  FIREBASE_PROJECT: turtle-intake
+  FIREBASE_PROJECT: serc-turtle-intake
 
 jobs:
   # ── Backend ─────────────────────────────────────────────────────────────────
