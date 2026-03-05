@@ -96,4 +96,4 @@ jobs:
           REACT_APP_API_BASE_URL: ${{ env.API_URL }}
 
       - name: Deploy to Firebase Hosting
-        run: npx --yes firebase-tools deploy --only hosting --project $FIREBASE_PROJECT --non-interactive
+        run: npx --yes firebase-tools deploy --only hosting --project $FIREBASE_PROJECT --non-interactive --token ${{ secrets.FIREBASE_TOKEN }}
